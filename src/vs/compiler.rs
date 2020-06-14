@@ -3,10 +3,11 @@ use std::io::{Cursor, Error, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
-use std::{env, fs};
+use std::{env, fs, io};
 
 use regex::bytes::{NoExpand, Regex};
 use tempdir::TempDir;
+use vswhere::InstallInfo;
 
 use lazy_static::lazy_static;
 
@@ -32,6 +33,47 @@ impl VsCompiler {
             toolchains: ToolchainHolder::new(),
         }
     }
+
+    fn get_compilers(&self, install_info: &InstallInfo) -> io::Result<Vec<Arc<dyn Toolchain>>> {
+        let version_file = install_info
+            .installation_path()
+            .join("VC")
+            .join("Auxiliary")
+            .join("Build")
+            .join("Microsoft")
+            .join("VCRedistVersion.default.txt");
+        let version_data = fs::read_to_string(version_file)?;
+        let tools_version = version_data.trim();
+        let tools_path: Arc<PathBuf> = Arc::new(
+            install_info
+                .installation_path()
+                .join("VC")
+                .join("Tools")
+                .join("MSVC")
+                .join(tools_version),
+        );
+
+        const ARCH: &[&str] = &["x64", "x86"];
+        Ok(ARCH
+            .iter()
+            .map(|host_arch| {
+                ARCH.iter()
+                    .map(|target_arch| {
+                        tools_path
+                            .join("bin")
+                            .join(format!("Host{}", host_arch))
+                            .join(target_arch)
+                            .join("cl.exe")
+                    })
+                    .collect::<Vec<PathBuf>>()
+            })
+            .flatten()
+            .filter(|cl_path| cl_path.exists())
+            .map(|cl_path| -> Arc<dyn Toolchain> {
+                Arc::new(VsToolchain::new(cl_path, &self.temp_dir))
+            })
+            .collect())
+    }
 }
 
 struct VsToolchain {
@@ -52,71 +94,28 @@ impl VsToolchain {
 
 impl Compiler for VsCompiler {
     fn resolve_toolchain(&self, command: &CommandInfo) -> Option<Arc<dyn Toolchain>> {
-        if command
-            .program
-            .file_name()
-            .and_then(|n| n.to_str())
-            .map(|n| n.to_lowercase())
-            .map_or(false, |n| (n == "cl.exe") || (n == "cl"))
-        {
-            command.find_executable().and_then(|path| {
-                self.toolchains.resolve(&path, |path| {
-                    Arc::new(VsToolchain::new(path, &self.temp_dir))
-                })
-            })
-        } else {
-            None
-        }
-    }
-
-    #[cfg(unix)]
-    fn discovery_toolchains(&self) -> Vec<Arc<dyn Toolchain>> {
-        Vec::new()
-    }
-
-    #[cfg(windows)]
-    fn discovery_toolchains(&self) -> Vec<Arc<dyn Toolchain>> {
-        use winreg::enums::*;
-        use winreg::RegKey;
-
-        lazy_static! {
-            static ref RE: regex::Regex = regex::Regex::new(r"^\d+\.\d+$").unwrap();
+        let exe = command.program.file_name()?.to_str()?.to_lowercase();
+        if exe != "cl.exe" && exe != "cl" {
+            return None;
         }
 
-        const CL_BIN: &[&str] = &[
-            "bin/cl.exe",
-            "bin/x86_arm/cl.exe",
-            "bin/x86_amd64/cl.exe",
-            "bin/amd64_x86/cl.exe",
-            "bin/amd64_arm/cl.exe",
-            "bin/amd64/cl.exe",
-        ];
-        const VC_REG: &[&str] = &[
-            "SOFTWARE\\Wow6432Node\\Microsoft\\VisualStudio\\SxS\\VC7",
-            "SOFTWARE\\Microsoft\\VisualStudio\\SxS\\VC7",
-        ];
+        let executable = command.find_executable()?;
+        self.toolchains.resolve(&executable, |path| {
+            Arc::new(VsToolchain::new(path, &self.temp_dir))
+        })
+    }
 
-        VC_REG
+    fn discover_toolchains(&self) -> Vec<Arc<dyn Toolchain>> {
+        // https://github.com/microsoft/vswhere/wiki/Find-VC
+        let mut config = vswhere::Config::new();
+        config.whitelist_component_id("Microsoft.VisualStudio.Component.VC.Tools.x86.x64");
+        let install_infos = config.run_default_path().unwrap_or_default();
+
+        install_infos
             .iter()
-            .filter_map(|reg_path| {
-                RegKey::predef(HKEY_LOCAL_MACHINE)
-                    .open_subkey_with_flags(reg_path, KEY_READ)
-                    .ok()
-            })
-            .flat_map(|key| -> Vec<String> {
-                key.enum_values()
-                    .filter_map(|x| x.ok())
-                    .map(|(name, _)| name)
-                    .filter(|name| RE.is_match(&name))
-                    .filter_map(|name: String| -> Option<String> { key.get_value(name).ok() })
-                    .collect()
-            })
-            .map(|path| Path::new(&path).to_path_buf())
-            .map(|path| -> Vec<PathBuf> { CL_BIN.iter().map(|bin| path.join(bin)).collect() })
-            .flat_map(|paths| paths.into_iter())
-            .filter(|cl| cl.exists())
-            .map(|cl| -> Arc<dyn Toolchain> { Arc::new(VsToolchain::new(cl, &self.temp_dir)) })
-            .filter(|toolchain| toolchain.identifier().is_some())
+            .map(|install_path| self.get_compilers(install_path))
+            .filter_map(Result::ok)
+            .flatten()
             .collect()
     }
 }

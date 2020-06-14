@@ -503,10 +503,10 @@ impl Compiler for CompilerGroup {
             .next()
     }
     // Discovery local toolchains.
-    fn discovery_toolchains(&self) -> Vec<Arc<dyn Toolchain>> {
+    fn discover_toolchains(&self) -> Vec<Arc<dyn Toolchain>> {
         self.0
             .iter()
-            .flat_map(|c| c.discovery_toolchains())
+            .flat_map(|c| c.discover_toolchains())
             .collect()
     }
 }
@@ -538,7 +538,7 @@ pub trait Compiler: Send + Sync {
     // Resolve toolchain for command execution.
     fn resolve_toolchain(&self, command: &CommandInfo) -> Option<Arc<dyn Toolchain>>;
     // Discovery local toolchains.
-    fn discovery_toolchains(&self) -> Vec<Arc<dyn Toolchain>>;
+    fn discover_toolchains(&self) -> Vec<Arc<dyn Toolchain>>;
 
     #[allow(clippy::type_complexity)]
     fn create_tasks(
