@@ -118,16 +118,14 @@ fn prepare_graph<C: Compiler>(
             }));
             depends.push(NodeIndex::end());
             // Add task actions
-            let mut index = 1;
             let total = actions.len();
-            for action in actions {
+            for (index, action) in (1..).zip(actions) {
                 let action_node = result.add_node(Arc::new(BuildTask {
                     title: format!("{} ({index}/{total})", node.title),
                     action,
                 }));
                 depends.push(node_index);
                 result.add_edge(group_node, action_node, ());
-                index += 1;
             }
             remap.push(group_node);
         }
