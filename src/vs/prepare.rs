@@ -253,6 +253,8 @@ fn parse_argument(iter: &mut IntoIter<String>) -> Option<Result<Arg, String>> {
                     | "d2vzeroupper-"
                     | "d2ExtendedWarningInfo"
                     | "d2ssa-cfg-question-"
+                    | "dximplicitlyinstantiatevirtualfunction"
+                    | "dximplicitlyinstantiatevirtualfunction-"
                     | "fastfail"
                     | "utf-8"
                     | "permissive-"
@@ -363,6 +365,7 @@ fn test_parse_argument() {
     let args: Vec<String> =
         "/TP /c /Yusample.h /Fpsample.h.pch /Fosample.cpp.o /DTEST /D TEST2 /arch:AVX /fsanitize=address /d2ExtendedWarningInfo \
          /d2ssa-cfg-question- /FS /d2pattern-opt-disable:-903736918 /d2pattern-opt-disable:586191940 /diagnostics:caret \
+         /dximplicitlyinstantiatevirtualfunction- \
          sample.cpp"
             .split(' ')
             .map(|x| x.to_string())
@@ -395,6 +398,11 @@ fn test_parse_argument() {
             Arg::flag(Scope::Compiler, "/", "d2pattern-opt-disable:-903736918"),
             Arg::flag(Scope::Compiler, "/", "d2pattern-opt-disable:586191940"),
             Arg::flag(Scope::Shared, "/", "diagnostics:caret"),
+            Arg::flag(
+                Scope::Shared,
+                "/",
+                "dximplicitlyinstantiatevirtualfunction-"
+            ),
             Arg::Input {
                 kind: InputKind::Source,
                 file: "sample.cpp".into(),
