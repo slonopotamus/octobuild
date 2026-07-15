@@ -147,7 +147,7 @@ impl BuilderService {
 
 fn handle_task(state: Arc<BuilderState>, request: &Request) -> octobuild::Result<Response> {
     // Receive compilation request.
-    info!("Received task from: {}", &request.remote_addr());
+    info!("Received task from: {}", request.remote_addr());
     let request: CompileRequest =
         bincode::decode_from_std_read(&mut request.data().unwrap(), bincode::config::standard())?;
     let pch_usage: PCHUsage = match request.precompiled_hash {
