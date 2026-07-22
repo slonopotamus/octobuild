@@ -55,7 +55,7 @@ pub fn parse(cmd_line: &str) -> crate::Result<Vec<String>> {
             // If not `in_quotes`, a space or tab ends the argument.
             SPACE | NEWLINE | RETURN | TAB if !in_quotes => {
                 ret_val.push(String::from_iter(&cur[..]));
-                cur.truncate(0);
+                cur.clear();
 
                 // Skip whitespace.
                 code_units.advance_while(|w| w == SPACE || w == NEWLINE || w == RETURN || w == TAB);

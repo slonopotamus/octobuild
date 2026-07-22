@@ -450,7 +450,7 @@ fn vs_identifier(path: &Path) -> Option<String> {
             return None;
         }
     };
-    Some(format!("cl {} {}", &product_version, executable_id))
+    Some(format!("cl {} {}", product_version, executable_id))
 }
 
 #[cfg(windows)]
