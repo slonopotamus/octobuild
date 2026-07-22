@@ -1,7 +1,7 @@
 = Changelog
 :icons: font
 
-== 1.9.0
+== 1.9.1
 
 - Add support for `/dximplicitlyinstantiatevirtualfunction-` for UE-5.8+ on Windows (https://github.com/octobuild/octobuild/issues/173[#173])
 
